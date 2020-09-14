@@ -2,3 +2,6 @@
 Version 13.0.1.0 : (17/01/20)
 		- Update code to show specific location quantity on product
 
+Version 13.0.1.1 : (11/09/20)
+		- Customization for medimart
+		- Add stock sync button in pos screen , to reduce load time.

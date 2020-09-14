@@ -13,10 +13,31 @@ odoo.define('bi_pos_stock.pos', function(require) {
 	var session = require('web.session');
 	var time = require('web.time');
 	var utils = require('web.utils');
+	var chrome = require('point_of_sale.chrome');
 
 	var QWeb = core.qweb;
 	var _t = core._t;
 
+	chrome.OrderSelectorWidget.include({
+		events: {
+			"click .pos-stock-sync": "do_pos_lock_screen",
+		},
+
+		init: function(parent, options) {
+			this._super(parent, options);
+			this.do_pos_lock_screen();
+		},
+
+		do_pos_lock_screen: function (e) {
+			var self = this;
+			this.pos.set('is_sync',true);
+			this.product_list_widget = new screens.ProductListWidget(this,{
+				click_product_action: function(product){ self.click_product(product); },
+				product_list: this.pos.db.get_product_by_category(0)
+			});
+			this.product_list_widget.renderElement();
+		},
+	});
 
 
 	models.load_models({
@@ -84,9 +105,6 @@ odoo.define('bi_pos_stock.pos', function(require) {
 			return pushed;
 		}
 	});
-
-
-	
 
 	screens.ProductListWidget.include({
 		init: function(parent, options) {
@@ -213,25 +231,67 @@ odoo.define('bi_pos_stock.pos', function(require) {
 
 			if (self.pos.config.show_stock_location == 'specific')
 			{
+				var x_sync = this.pos.get("is_sync")
 				var location = self.pos.locations;
-				if (self.pos.config.pos_stock_type == 'onhand')
-				{
-					rpc.query({
-							model: 'stock.quant',
-							method: 'get_stock_location_qty',
-							args: [1, location],
-						
+				if(x_sync == true){
+					if (self.pos.config.pos_stock_type == 'onhand')
+					{
+						rpc.query({
+								model: 'stock.quant',
+								method: 'get_stock_location_qty',
+								args: [1, location],
+							
+							},{async : false}).then(function(output) {
+								self.pos.loc_onhand = output[0];
+								for(var i = 0, len = self.product_list.length; i < len; i++){
+									self.product_list[i]['bi_on_hand'] = self.product_list[i].qty_available;
+									self.product_list[i]['bi_available'] = self.product_list[i].virtual_available;
+									
+									for(let key in self.pos.loc_onhand)
+									{
+										if(self.product_list[i].id == key)
+										{
+											self.product_list[i]['bi_on_hand'] = self.pos.loc_onhand[key];
+											
+											var product_qty_final = $("[data-product-id='"+self.product_list[i].id+"'] #stockqty");
+											product_qty_final.html(self.pos.loc_onhand[key])
+											var product_qty_avail = $("[data-product-id='"+self.product_list[i].id+"'] #availqty");
+											product_qty_avail.html(self.product_list[i].virtual_available);
+										}
+									}
+									var product_node = self.render_product(self.product_list[i]);
+									product_node.addEventListener('click',self.click_product_handler);
+									product_node.addEventListener('keypress',self.keypress_product_handler);
+									list_container.appendChild(product_node);
+								}
+								self.pos.set("is_sync",false);
+						});
+					}
+					if (self.pos.config.pos_stock_type == 'available')
+					{
+						rpc.query({
+								model: 'product.product',
+								method: 'get_stock_location_avail_qty',
+								args: [1, location],
+							
 						},{async : false}).then(function(output) {
-							self.pos.loc_onhand = output[0];
+								
+							self.pos.loc_available = output[0];
 							for(var i = 0, len = self.product_list.length; i < len; i++){
 								self.product_list[i]['bi_on_hand'] = self.product_list[i].qty_available;
 								self.product_list[i]['bi_available'] = self.product_list[i].virtual_available;
 
-								for(let key in self.pos.loc_onhand)
+								
+								for(let key in self.pos.loc_available)
 								{
 									if(self.product_list[i].id == key)
 									{
-										self.product_list[i]['bi_on_hand'] = self.pos.loc_onhand[key];
+										self.product_list[i]['bi_available'] = self.pos.loc_available[key];
+										
+										var product_qty_final = $("[data-product-id='"+self.product_list[i].id+"'] #stockqty");
+										product_qty_final.html(self.product_list[i].qty_available)
+										var product_qty_avail = $("[data-product-id='"+self.product_list[i].id+"'] #availqty");
+										product_qty_avail.html(self.pos.loc_available[key]);
 									}
 								}
 								var product_node = self.render_product(self.product_list[i]);
@@ -239,38 +299,17 @@ odoo.define('bi_pos_stock.pos', function(require) {
 								product_node.addEventListener('keypress',self.keypress_product_handler);
 								list_container.appendChild(product_node);
 							}
-					});
-				}
-
-				if (self.pos.config.pos_stock_type == 'available')
-				{
-					rpc.query({
-							model: 'product.product',
-							method: 'get_stock_location_avail_qty',
-							args: [1, location],
-						
-					},{async : false}).then(function(output) {
-							
-						self.pos.loc_available = output[0];
-						for(var i = 0, len = self.product_list.length; i < len; i++){
-							self.product_list[i]['bi_on_hand'] = self.product_list[i].qty_available;
-							self.product_list[i]['bi_available'] = self.product_list[i].virtual_available;
-
-							for(let key in self.pos.loc_available)
-							{
-								if(self.product_list[i].id == key)
-								{
-									self.product_list[i]['bi_available'] = self.pos.loc_available[key];
-								}
-							}
-							var product_node = self.render_product(self.product_list[i]);
-							product_node.addEventListener('click',self.click_product_handler);
-							product_node.addEventListener('keypress',self.keypress_product_handler);
-							list_container.appendChild(product_node);
-						}
-					});
-				}
-			
+							self.pos.set("is_sync",false);
+						});
+					}
+				}else{
+					for(var i = 0, len = this.product_list.length; i < len; i++){
+						var product_node = this.render_product(this.product_list[i]);
+						product_node.addEventListener('click',this.click_product_handler);
+						product_node.addEventListener('keypress',this.keypress_product_handler);
+						list_container.appendChild(product_node);
+					}
+				}			
 			}
 			else{
 				for(var i = 0, len = this.product_list.length; i < len; i++){
