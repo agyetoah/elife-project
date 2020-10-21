@@ -4,7 +4,7 @@
 
 {
     "name" : "POS Stock in Odoo",
-    "version" : "13.0.1.1",
+    "version" : "13.0.1.2",
     "category" : "Point of Sale",
     "depends" : ['base','sale_management','stock','point_of_sale'],
     "author": "BrowseInfo",

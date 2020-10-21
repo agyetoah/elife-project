@@ -149,6 +149,20 @@ class stock_quant(models.Model):
 				res.update({product.id : quants.quantity})
 		return [res]
 
+	def get_products_stock_location_qty(self, location,products):
+		res = {}
+		product_ids = self.env['product.product'].browse(products)
+		for product in product_ids:
+			quants = self.env['stock.quant'].search([('product_id', '=', product.id),('location_id', '=', location['id'])])
+			if len(quants) > 1:
+				quantity = 0.0
+				for quant in quants:
+					quantity += quant.quantity
+				res.update({product.id : quantity})
+			else:
+				res.update({product.id : quants.quantity})
+		return [res]
+
 	def get_single_product(self,product, location):
 		res = []
 		pro = self.env['product.product'].browse(product)

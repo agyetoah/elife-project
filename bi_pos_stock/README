@@ -5,3 +5,6 @@ Version 13.0.1.0 : (17/01/20)
 Version 13.0.1.1 : (11/09/20)
 		- Customization for medimart
 		- Add stock sync button in pos screen , to reduce load time.
+
+Version 13.0.1.2 : (13/10/20)
+		- Check available qty only of orderline products at the time of payment button click.

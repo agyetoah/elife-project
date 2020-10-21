@@ -18,6 +18,7 @@ odoo.define('bi_pos_stock.pos', function(require) {
 	var QWeb = core.qweb;
 	var _t = core._t;
 
+
 	chrome.OrderSelectorWidget.include({
 		events: {
 			"click .pos-stock-sync": "do_pos_lock_screen",
@@ -38,7 +39,6 @@ odoo.define('bi_pos_stock.pos', function(require) {
 			this.product_list_widget.renderElement();
 		},
 	});
-
 
 	models.load_models({
 		model: 'stock.location',
@@ -246,13 +246,13 @@ odoo.define('bi_pos_stock.pos', function(require) {
 								for(var i = 0, len = self.product_list.length; i < len; i++){
 									self.product_list[i]['bi_on_hand'] = self.product_list[i].qty_available;
 									self.product_list[i]['bi_available'] = self.product_list[i].virtual_available;
-									
+
 									for(let key in self.pos.loc_onhand)
 									{
 										if(self.product_list[i].id == key)
 										{
 											self.product_list[i]['bi_on_hand'] = self.pos.loc_onhand[key];
-											
+
 											var product_qty_final = $("[data-product-id='"+self.product_list[i].id+"'] #stockqty");
 											product_qty_final.html(self.pos.loc_onhand[key])
 											var product_qty_avail = $("[data-product-id='"+self.product_list[i].id+"'] #availqty");
@@ -267,6 +267,7 @@ odoo.define('bi_pos_stock.pos', function(require) {
 								self.pos.set("is_sync",false);
 						});
 					}
+
 					if (self.pos.config.pos_stock_type == 'available')
 					{
 						rpc.query({
@@ -281,13 +282,11 @@ odoo.define('bi_pos_stock.pos', function(require) {
 								self.product_list[i]['bi_on_hand'] = self.product_list[i].qty_available;
 								self.product_list[i]['bi_available'] = self.product_list[i].virtual_available;
 
-								
 								for(let key in self.pos.loc_available)
 								{
 									if(self.product_list[i].id == key)
 									{
 										self.product_list[i]['bi_available'] = self.pos.loc_available[key];
-										
 										var product_qty_final = $("[data-product-id='"+self.product_list[i].id+"'] #stockqty");
 										product_qty_final.html(self.product_list[i].qty_available)
 										var product_qty_avail = $("[data-product-id='"+self.product_list[i].id+"'] #availqty");
@@ -309,7 +308,7 @@ odoo.define('bi_pos_stock.pos', function(require) {
 						product_node.addEventListener('keypress',this.keypress_product_handler);
 						list_container.appendChild(product_node);
 					}
-				}			
+				}
 			}
 			else{
 				for(var i = 0, len = this.product_list.length; i < len; i++){
@@ -380,66 +379,69 @@ odoo.define('bi_pos_stock.pos', function(require) {
 					self.gui.show_screen('payment');
 				}
 
+				if (self.pos.config.show_stock_location == 'specific')
+				{
+					var partner_id = self.pos.get_client();
+					var location = self.pos.locations;
+					var lines = order.get_orderlines();
+					var prods = [];
 
-			if (self.pos.config.show_stock_location == 'specific')
-			{
-				var partner_id = self.pos.get_client();
-				var location = self.pos.locations;
-
-				rpc.query({
-						model: 'stock.quant',
-						method: 'get_stock_location_qty',
-						args: [partner_id ? partner_id.id : 0, location],
-					
-					},{async : false}).then(function(output) {
-
-						var lines = order.get_orderlines();
-						var flag = 0;
-
-						for (var i = 0; i < lines.length; i++) {
-							for (var j = 0; j < output.length; j++) {
-								var values = $.map(output[0], function(value, key) { 
-									var keys = $.map(output[0], function(value, key) {
-										if (lines[i].product.type == 'product' && self.pos.config.pos_allow_order == false && lines[i].product['id'] == key && lines[i].quantity > value){
-											flag = flag + 1;
-										}
-									});
-																
-								});
-							}
+					for (var i = 0; i < lines.length; i++) {
+						if (lines[i].product.type == 'product'){
+							prods.push(lines[i].product.id)
 						}
-						if(flag > 0){
-							self.gui.show_popup('valid_qty_popup_widget', {});
-						}
-						else{
-							self.gui.show_screen('payment');
-						}
-										   
-				});
-			
-			} else {
-			
-			
-				// When Ordered Qty it More than Available Qty, Raise Error popup
-
-				var lines = order.get_orderlines();
-
-				for (var i = 0; i < lines.length; i++) {
-					
-					if (lines[i].product.type == 'product' && self.pos.config.pos_allow_order == false && lines[i].quantity > lines[i].product['qty_available']){
-						//if (lines[i].quantity > lines[i].product['qty_available']) {
-							self.gui.show_popup('valid_qty_popup_widget', {});
-							break;
-						//}
+					}
+					rpc.query({
+							model: 'stock.quant',
+							method: 'get_products_stock_location_qty',
+							args: [partner_id ? partner_id.id : 0, location,prods],
 						
-					}
-					else { 
-						 self.gui.show_screen('payment');   
-					}
+						},{async : false}).then(function(output) {
+							var flag = 0;
+							for (var i = 0; i < lines.length; i++) {
+								for (var j = 0; j < output.length; j++) {
+									var values = $.map(output[0], function(value, key) { 
+										var keys = $.map(output[0], function(value, key) {
+											if (lines[i].product.type == 'product' && self.pos.config.pos_allow_order == false && lines[i].product['id'] == key && lines[i].quantity > value){
+												flag = flag + 1;
+											}
+										});
+																	
+									});
+								}
+							}
+							if(flag > 0){
+								self.gui.show_popup('valid_qty_popup_widget', {});
+							}
+							else{
+								self.gui.show_screen('payment');
+							}
+											   
+					});
 				
-				}
+				} else {
 				
-			}	
+				
+					// When Ordered Qty it More than Available Qty, Raise Error popup
+
+					var lines = order.get_orderlines();
+
+					for (var i = 0; i < lines.length; i++) {
+						
+						if (lines[i].product.type == 'product' && self.pos.config.pos_allow_order == false && lines[i].quantity > lines[i].product['qty_available']){
+							//if (lines[i].quantity > lines[i].product['qty_available']) {
+								self.gui.show_popup('valid_qty_popup_widget', {});
+								break;
+							//}
+							
+						}
+						else { 
+							 self.gui.show_screen('payment');   
+						}
+					
+					}
+					
+				}	
 								
 			});
 			this.$('.set-customer').click(function(){
